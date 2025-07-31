@@ -22,7 +22,6 @@ local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 -- ✅ Variable Global
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
 local running = false
@@ -30,16 +29,41 @@ local currentFollowThread = nil
 local targetName = ""
 local followDelay = 0.5
 
+-- ✅ Update Dropdown Player List
+local function getPlayerNames()
+    local list = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(list, player.DisplayName .. " [" .. player.Name .. "]")
+        end
+    end
+    return list
+end
+
 -- ✅ TextBox Nama Target
 GroupBox:AddInput("TargetName", {
     Default = "",
     Numeric = false,
     Finished = false,
-    Text = "Target DisplayName / Username",
-    Tooltip = "Masukkan nama target yang akan diikuti",
+    Text = "Nama Target Manual",
+    Tooltip = "Masukkan DisplayName/Username target",
     Placeholder = "Contoh: Player123",
     Callback = function(value)
         targetName = value
+    end
+})
+
+-- ✅ Dropdown Target
+GroupBox:AddDropdown("TargetDropdown", {
+    Values = getPlayerNames(),
+    Multi = false,
+    Text = "Pilih Target dari List",
+    Tooltip = "Lebih mudah pilih pemain langsung",
+    Callback = function(value)
+        local name = string.match(value, "%[(.-)%]$") -- ambil Username dari [Username]
+        if name then
+            targetName = name
+        end
     end
 })
 
@@ -56,12 +80,6 @@ GroupBox:AddInput("FollowDelay", {
         if num then followDelay = num end
     end
 })
-
--- ✅ Tombol Cancel
-GroupBox:AddButton("Cancel Follow", function()
-    running = false
-    Library:Notify("⛔ Follow dihentikan", 3)
-end)
 
 -- ✅ Fungsi Hapus Tenda
 local function deleteTenda()
@@ -109,6 +127,13 @@ local function followTargetPlayer(targetPlayer)
     end
 end
 
+-- ✅ Tombol Cancel
+GroupBox:AddButton("Cancel Follow", function()
+    running = false
+    deleteTenda()
+    Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
+end)
+
 -- ✅ Toggle Aktif
 GroupBox:AddToggle("FollowTenda", {
     Text = "Aktifkan Follow Tenda",
@@ -118,7 +143,7 @@ GroupBox:AddToggle("FollowTenda", {
         running = state
         if state then
             if targetName == "" then
-                Library:Notify("❗ Masukkan nama target terlebih dahulu", 3)
+                Library:Notify("❗ Masukkan atau pilih nama target terlebih dahulu", 3)
                 return
             end
 
@@ -140,7 +165,8 @@ GroupBox:AddToggle("FollowTenda", {
             end
         else
             running = false
-            Library:Notify("⛔ Follow dimatikan", 3)
+            deleteTenda()
+            Library:Notify("⛔ Follow dimatikan & tenda dihapus", 3)
         end
     end,
 })
