@@ -6,7 +6,7 @@ Library.ForceCheckbox = false
 Library.ShowToggleFrameInKeybinds = true
 
 local Window = Library:CreateWindow({
-    Title = "Tenda Follower UI",
+    Title = "Bug Hunter",
     Footer = "by MasterZ",
     Icon = 0,
     NotifySide = "Right",
@@ -22,6 +22,25 @@ local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
 
+-- ✅ Info Box tanpa emoji
+local InfoBox = Tabs.Info:AddLeftGroupbox("Tentang Script")
+InfoBox:AddLabel("Script developed by MasterZ")
+InfoBox:AddDivider()
+InfoBox:AddLabel("Phone Spam:")
+InfoBox:AddLabel("- Loops call to every player")
+InfoBox:AddLabel("- Leaves room automatically")
+InfoBox:AddDivider()
+InfoBox:AddLabel("Carry Request Spam:")
+InfoBox:AddLabel("- Sends carry requests repeatedly")
+InfoBox:AddLabel("- Targets all players in server")
+InfoBox:AddDivider()
+InfoBox:AddLabel("Tent Follow System:")
+InfoBox:AddLabel("- Automatically follows target player")
+InfoBox:AddLabel("- Handles death, respawn, and rejoin")
+InfoBox:AddDivider()
+InfoBox:AddLabel("Powered by Obsidian UI Framework")
+
+-- ✅ Labels untuk status live
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
 
@@ -80,15 +99,6 @@ local function followTargetPlayer(targetPlayer)
         local lastPos = hrp.Position
         spawnTendaAt(lastPos)
 
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local diedConnection
-        if humanoid then
-            diedConnection = humanoid.Died:Connect(function()
-                deleteTenda()
-                Library:Notify("Target died. Tent follow paused.", 3)
-            end)
-        end
-
         while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
             task.wait(followDelay)
             local newPos = targetPlayer.Character.HumanoidRootPart.Position
@@ -98,25 +108,17 @@ local function followTargetPlayer(targetPlayer)
                 lastPos = newPos
             end
         end
-
-        if diedConnection then
-            diedConnection:Disconnect()
-        end
     end
 
     if targetPlayer.Character then
-        task.spawn(function()
-            follow(targetPlayer.Character)
-        end)
+        follow(targetPlayer.Character)
     end
 
     targetPlayer.CharacterAdded:Connect(function(newChar)
         if running then
-            Library:Notify("Target respawned. Resuming follow.", 3)
+            Library:Notify("Target respawned, melanjutkan follow...", 3)
             task.wait(1)
-            task.spawn(function()
-                follow(newChar)
-            end)
+            follow(newChar)
         end
     end)
 end
@@ -148,7 +150,7 @@ local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
 GroupBox:AddButton("Refresh Player List", function()
     local newList = getPlayerNames()
     playerDropdown:SetValues(newList)
-    Library:Notify("Player list updated.", 3)
+    Library:Notify("Daftar pemain diperbarui", 3)
 end)
 
 GroupBox:AddInput("FollowDelay", {
@@ -167,7 +169,7 @@ GroupBox:AddInput("FollowDelay", {
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
-    Library:Notify("Follow stopped and tent removed.", 3)
+    Library:Notify("Follow dihentikan & tenda dihapus", 3)
 end)
 
 GroupBox:AddToggle("FollowTenda", {
@@ -178,7 +180,7 @@ GroupBox:AddToggle("FollowTenda", {
         running = state
         if state then
             if targetName == "" then
-                Library:Notify("Please enter or select a target name first.", 3)
+                Library:Notify("Masukkan atau pilih nama target terlebih dahulu", 3)
                 return
             end
             local targetPlayer = nil
@@ -189,34 +191,35 @@ GroupBox:AddToggle("FollowTenda", {
                 end
             end
             if targetPlayer then
-                Library:Notify("Following: " .. targetPlayer.Name, 3)
+                Library:Notify("Mulai mengikuti: " .. targetPlayer.Name, 3)
                 task.spawn(function()
                     followTargetPlayer(targetPlayer)
                 end)
             else
-                Library:Notify("Target player not found.", 3)
+                Library:Notify("Player tidak ditemukan", 3)
             end
         else
             running = false
             deleteTenda()
-            Library:Notify("Follow disabled. Tent removed.", 3)
+            Library:Notify("Follow dimatikan & tenda dihapus", 3)
         end
     end,
 })
 
--- ✅ Target keluar & join ulang
+-- ✅ Deteksi jika target keluar dari server
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if running and followTarget and leavingPlayer == followTarget then
         running = false
         deleteTenda()
-        Library:Notify("Target left the game. Follow stopped.", 3)
+        Library:Notify("Target keluar, follow otomatis dihentikan", 3)
     end
 end)
 
+-- ✅ Deteksi jika target join ulang
 Players.PlayerAdded:Connect(function(joinedPlayer)
     if targetName == "" or not running then return end
     if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
-        Library:Notify("Target rejoined. Resuming follow.", 3)
+        Library:Notify("Target join ulang, mulai follow ulang", 3)
         task.wait(1)
         task.spawn(function()
             followTargetPlayer(joinedPlayer)
@@ -224,21 +227,22 @@ Players.PlayerAdded:Connect(function(joinedPlayer)
     end
 end)
 
--- ✅ Leave Room Function
+-- ✅ Fungsi keluar dari room
 local function leaveRoom()
     local args = { "Phone", "LeaveRoom" }
     ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
         :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
 end
 
--- ✅ Spam Telepon
+-- ✅ Spam Telepon Loop
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
-        for _, player in ipairs(Players:GetPlayers()) do
+        local playersList = Players:GetPlayers()
+        for _, player in ipairs(playersList) do
             if not spamCallRunning then break end
             if player ~= LocalPlayer then
-                CallingLabel:SetText("Calling: " .. player.DisplayName .. " [" .. player.Name .. "]")
+                CallingLabel:SetText("Sedang menelepon: " .. player.DisplayName .. " [" .. player.Name .. "]")
                 local args = { "Phone", "InviteToRoom", player }
                 ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
                     :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
@@ -248,23 +252,23 @@ local function spamInviteLoop()
             end
         end
     end
-    CallingLabel:SetText("Call stopped.")
+    CallingLabel:SetText("Telepon dimatikan")
 end
 
-CallBox:AddButton("Start Spam Call", function()
+CallBox:AddButton("Mulai Spam Telepon", function()
     if not spamCallRunning then
         task.spawn(spamInviteLoop)
-        Library:Notify("Starting call spam loop...", 3)
+        Library:Notify("Memulai spam telepon looping ke semua pemain...", 3)
     end
 end)
 
-CallBox:AddButton("Stop Call", function()
+CallBox:AddButton("Berhentikan Telepon", function()
     spamCallRunning = false
-    CallingLabel:SetText("Call stopped.")
-    Library:Notify("Call spam stopped.", 3)
+    CallingLabel:SetText("Telepon dimatikan")
+    Library:Notify("Spam telepon dihentikan", 3)
 end)
 
--- ✅ Spam Carry
+-- ✅ Spam Carry Loop
 local function spamCarryLoop()
     carryRunning = true
     while carryRunning do
@@ -273,40 +277,23 @@ local function spamCarryLoop()
             if player ~= LocalPlayer then
                 local args = { "Request", player }
                 ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
-                CarryingLabel:SetText("Sending carry request to: " .. player.DisplayName .. " [" .. player.Name .. "]")
+                CarryingLabel:SetText("Sedang carry request: " .. player.DisplayName .. " [" .. player.Name .. "]")
                 task.wait(0.4)
             end
         end
     end
-    CarryingLabel:SetText("Carry request stopped.")
+    CarryingLabel:SetText("Carry request dihentikan")
 end
 
-CarryBox:AddButton("Start Spam Carry", function()
+CarryBox:AddButton("Mulai Spam Carry Loop", function()
     if not carryRunning then
         task.spawn(spamCarryLoop)
-        Library:Notify("Starting carry request spam...", 3)
+        Library:Notify("Memulai spam carry otomatis ke semua pemain...", 3)
     end
 end)
 
-CarryBox:AddButton("Stop Spam Carry", function()
+CarryBox:AddButton("Stop Spam Carry Loop", function()
     carryRunning = false
-    CarryingLabel:SetText("Carry request stopped.")
-    Library:Notify("Carry spam stopped.", 3)
+    CarryingLabel:SetText("Carry request dihentikan")
+    Library:Notify("Loop carry request dihentikan", 3)
 end)
-
--- ✅ Info Tab - 1 Kotak Rapi, Profesional
-Tabs.Info:AddParagraph("Information", [[
-Script developed by MasterZ
-
-Phone Spam:
-- Loops call to every player and leaves the room automatically
-
-Carry Request Spam:
-- Sends carry requests repeatedly to all available players
-
-Tent Follow System:
-- Automatically follows the target player
-- Resumes follow after character death, respawn, or rejoin
-
-Powered by Obsidian UI Framework
-]])
