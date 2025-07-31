@@ -20,10 +20,11 @@ local Tabs = {
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
+
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
 
--- ✅ Variable Global
+-- ✅ Global Variables
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
@@ -34,7 +35,7 @@ local spamCallRunning = false
 local targetName = ""
 local followDelay = 0.5
 
--- ✅ Fungsi Dapatkan Daftar Pemain
+-- ✅ Functions
 local function getPlayerNames()
     local list = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -45,7 +46,6 @@ local function getPlayerNames()
     return list
 end
 
--- ✅ Fungsi Hapus Tenda
 local function deleteTenda()
     local args = { "uxrDeleteEvent", "Tenda" }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
@@ -53,7 +53,6 @@ local function deleteTenda()
         :FireServer(unpack(args))
 end
 
--- ✅ Fungsi Spawn Tenda
 local function spawnTendaAt(pos)
     local args = {
         "uxrPlaceEvent", "Tenda",
@@ -67,12 +66,10 @@ local function spawnTendaAt(pos)
         :FireServer(unpack(args))
 end
 
--- ✅ Cek Gerakan
 local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
--- ✅ Fungsi Utama: Ikuti Target
 local function followTargetPlayer(targetPlayer)
     local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -91,7 +88,7 @@ local function followTargetPlayer(targetPlayer)
     end
 end
 
--- ✅ TextBox Nama Target
+-- ✅ Tenda Follow UI
 GroupBox:AddInput("TargetName", {
     Default = "",
     Numeric = false,
@@ -104,7 +101,6 @@ GroupBox:AddInput("TargetName", {
     end
 })
 
--- ✅ Dropdown Target
 local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
     Values = getPlayerNames(),
     Multi = false,
@@ -112,20 +108,16 @@ local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
     Tooltip = "Lebih mudah pilih pemain langsung",
     Callback = function(value)
         local name = string.match(value, "%[(.-)%]$")
-        if name then
-            targetName = name
-        end
+        if name then targetName = name end
     end
 })
 
--- ✅ Tombol Refresh Dropdown
 GroupBox:AddButton("🔄 Refresh Player List", function()
     local newList = getPlayerNames()
     playerDropdown:SetValues(newList)
     Library:Notify("✅ Daftar pemain diperbarui!", 3)
 end)
 
--- ✅ TextBox Delay Kecepatan
 GroupBox:AddInput("FollowDelay", {
     Default = "0.5",
     Numeric = false,
@@ -139,14 +131,12 @@ GroupBox:AddInput("FollowDelay", {
     end
 })
 
--- ✅ Tombol Cancel
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
     Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
 end)
 
--- ✅ Toggle Aktif
 GroupBox:AddToggle("FollowTenda", {
     Text = "Aktifkan Follow Tenda",
     Default = false,
@@ -158,7 +148,6 @@ GroupBox:AddToggle("FollowTenda", {
                 Library:Notify("❗ Masukkan atau pilih nama target terlebih dahulu", 3)
                 return
             end
-
             local targetPlayer = nil
             for _, player in ipairs(Players:GetPlayers()) do
                 if player.Name:lower() == targetName:lower() or player.DisplayName:lower() == targetName:lower() then
@@ -166,7 +155,6 @@ GroupBox:AddToggle("FollowTenda", {
                     break
                 end
             end
-
             if targetPlayer then
                 Library:Notify("✅ Mulai mengikuti: " .. targetPlayer.Name, 3)
                 task.spawn(function()
@@ -183,7 +171,30 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Fungsi Spam Invite Loop
+-- ✅ Jika target keluar / masuk lagi
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if running and targetName ~= "" then
+        if leavingPlayer.Name:lower() == targetName:lower() or leavingPlayer.DisplayName:lower() == targetName:lower() then
+            running = false
+            deleteTenda()
+            Library:Notify("🚪 Target keluar, follow otomatis dihentikan", 3)
+        end
+    end
+end)
+
+Players.PlayerAdded:Connect(function(joinedPlayer)
+    if not running then return end
+    if targetName == "" then return end
+    if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
+        Library:Notify("🔄 Target masuk lagi, mulai follow ulang", 3)
+        task.wait(1)
+        task.spawn(function()
+            followTargetPlayer(joinedPlayer)
+        end)
+    end
+end)
+
+-- ✅ Spam Telepon
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
@@ -200,16 +211,6 @@ local function spamInviteLoop()
     CallingLabel:SetText("📴 Telepon dimatikan")
 end
 
--- ✅ Leave Room
-local function leaveRoom()
-    spamCallRunning = false
-    CallingLabel:SetText("📴 Telepon dimatikan")
-    local args = { "Phone", "LeaveRoom" }
-    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
-    Library:Notify("🚪 Keluar dari Room & hentikan spam telepon", 3)
-end
-
--- ✅ Tombol Spam Telepon
 CallBox:AddButton("📞 Mulai Spam Telepon", function()
     if not spamCallRunning then
         task.spawn(spamInviteLoop)
@@ -223,46 +224,7 @@ CallBox:AddButton("⛔ Berhentikan Telepon", function()
     Library:Notify("⛔ Spam telepon dihentikan", 3)
 end)
 
-CallBox:AddButton("🚪 Leave Room", leaveRoom)
-
--- ✅ Player keluar = stop follow
-Players.PlayerRemoving:Connect(function(leavingPlayer)
-    if running and targetName ~= "" then
-        if leavingPlayer.Name:lower() == targetName:lower() or leavingPlayer.DisplayName:lower() == targetName:lower() then
-            running = false
-            deleteTenda()
-            Library:Notify("🚪 Target keluar, follow otomatis dihentikan", 3)
-        end
-    end
-end)
-
--- ✅ Player join kembali = mulai follow ulang
-Players.PlayerAdded:Connect(function(joinedPlayer)
-    if not running then return end
-    if targetName == "" then return end
-
-    if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
-        Library:Notify("🔄 Target masuk lagi, mulai follow ulang", 3)
-        task.wait(1)
-        task.spawn(function()
-            followTargetPlayer(joinedPlayer)
-        end)
-    end
-end)
-
--- ✅ Fungsi Spam Carry Sekali
-local function spamCarryAll()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local args = { "Request", player }
-            ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
-            Library:Notify("📦 Mengirim carry ke: " .. player.DisplayName, 2)
-            task.wait(0.4)
-        end
-    end
-end
-
--- ✅ Fungsi Looping Spam Carry
+-- ✅ Spam Carry Loop
 local function spamCarryLoop()
     carryRunning = true
     while carryRunning do
@@ -279,28 +241,15 @@ local function spamCarryLoop()
     CarryingLabel:SetText("📴 Carry request dihentikan")
 end
 
--- ✅ Fungsi Stop Carry Loop
-local function stopCarryLoop()
-    carryRunning = false
-    CarryingLabel:SetText("📴 Carry request dihentikan")
-    Library:Notify("⛔ Loop carry request dihentikan", 3)
-end
-
--- ✅ Fungsi Cancel Carry
-local function cancelCarry()
-    carryRunning = false
-    local args = { "Clavswoshy" }
-    ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
-    Library:Notify("❌ Carry request dibatalkan", 3)
-end
-
--- ✅ Tombol Carry
-CarryBox:AddButton("📦 Spam Carry ke Semua", spamCarryAll)
 CarryBox:AddButton("🔁 Mulai Spam Carry Loop", function()
     if not carryRunning then
         task.spawn(spamCarryLoop)
         Library:Notify("📦 Memulai spam carry otomatis...", 3)
     end
 end)
-CarryBox:AddButton("🛑 Stop Spam Carry Loop", stopCarryLoop)
-CarryBox:AddButton("❌ Cancel Carry Request", cancelCarry)
+
+CarryBox:AddButton("🛑 Stop Spam Carry Loop", function()
+    carryRunning = false
+    CarryingLabel:SetText("📴 Carry request dihentikan")
+    Library:Notify("⛔ Loop carry request dihentikan", 3)
+end)
