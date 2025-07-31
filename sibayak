@@ -28,6 +28,7 @@ local running = false
 local currentFollowThread = nil
 local targetName = ""
 local followDelay = 0.5
+local currentHighlight = nil
 
 -- ✅ Update Dropdown Player List
 local function getPlayerNames()
@@ -38,6 +39,66 @@ local function getPlayerNames()
         end
     end
     return list
+end
+
+-- ✅ Fungsi Hapus Tenda
+local function deleteTenda()
+    local args = { "uxrDeleteEvent", "Tenda" }
+    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+        :FireServer(unpack(args))
+end
+
+-- ✅ Fungsi Spawn Tenda
+local function spawnTendaAt(pos)
+    local args = {
+        "uxrPlaceEvent", "Tenda",
+        pos.X, pos.Y, pos.Z,
+        0.538154125213623, 0, 0.8428464531898499,
+        0, 1, 0,
+        -0.8428464531898499, 0, 0.538154125213623
+    }
+    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+        :FireServer(unpack(args))
+end
+
+-- ✅ Cek Gerakan
+local function hasMoved(lastPos, newPos)
+    return (lastPos - newPos).Magnitude > 1
+end
+
+-- ✅ Highlight Target
+local function applyHighlight(targetPlayer)
+    if currentHighlight then currentHighlight:Destroy() end
+    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
+    currentHighlight = Instance.new("Highlight")
+    currentHighlight.Adornee = char
+    currentHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    currentHighlight.FillColor = Color3.fromRGB(255, 255, 0)
+    currentHighlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+    currentHighlight.FillTransparency = 0.5
+    currentHighlight.OutlineTransparency = 0
+    currentHighlight.Parent = char
+end
+
+-- ✅ Fungsi Utama: Ikuti Target
+local function followTargetPlayer(targetPlayer)
+    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local lastPos = hrp.Position
+
+    spawnTendaAt(lastPos)
+
+    while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+        task.wait(followDelay)
+        local newPos = targetPlayer.Character.HumanoidRootPart.Position
+        if hasMoved(lastPos, newPos) then
+            deleteTenda()
+            spawnTendaAt(newPos)
+            lastPos = newPos
+        end
+    end
 end
 
 -- ✅ TextBox Nama Target
@@ -81,56 +142,14 @@ GroupBox:AddInput("FollowDelay", {
     end
 })
 
--- ✅ Fungsi Hapus Tenda
-local function deleteTenda()
-    local args = { "uxrDeleteEvent", "Tenda" }
-    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
-        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
-        :FireServer(unpack(args))
-end
-
--- ✅ Fungsi Spawn Tenda
-local function spawnTendaAt(pos)
-    local args = {
-        "uxrPlaceEvent", "Tenda",
-        pos.X, pos.Y, pos.Z,
-        0.538154125213623, 0, 0.8428464531898499,
-        0, 1, 0,
-        -0.8428464531898499, 0, 0.538154125213623
-    }
-    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
-        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
-        :FireServer(unpack(args))
-end
-
--- ✅ Cek Gerakan
-local function hasMoved(lastPos, newPos)
-    return (lastPos - newPos).Magnitude > 1
-end
-
--- ✅ Fungsi Utama: Ikuti Target
-local function followTargetPlayer(targetPlayer)
-    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    local hrp = char:WaitForChild("HumanoidRootPart")
-    local lastPos = hrp.Position
-
-    spawnTendaAt(lastPos)
-
-    while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
-        task.wait(followDelay)
-        local newPos = targetPlayer.Character.HumanoidRootPart.Position
-        if hasMoved(lastPos, newPos) then
-            deleteTenda()
-            spawnTendaAt(newPos)
-            lastPos = newPos
-        end
-    end
-end
-
 -- ✅ Tombol Cancel
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
+    if currentHighlight then
+        currentHighlight:Destroy()
+        currentHighlight = nil
+    end
     Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
 end)
 
@@ -156,6 +175,7 @@ GroupBox:AddToggle("FollowTenda", {
             end
 
             if targetPlayer then
+                applyHighlight(targetPlayer)
                 Library:Notify("✅ Mulai mengikuti: " .. targetPlayer.Name, 3)
                 currentFollowThread = task.spawn(function()
                     followTargetPlayer(targetPlayer)
@@ -166,6 +186,10 @@ GroupBox:AddToggle("FollowTenda", {
         else
             running = false
             deleteTenda()
+            if currentHighlight then
+                currentHighlight:Destroy()
+                currentHighlight = nil
+            end
             Library:Notify("⛔ Follow dimatikan & tenda dihapus", 3)
         end
     end,
