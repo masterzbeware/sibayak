@@ -70,25 +70,39 @@ local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
+-- ✅ Follow Tenda yang tetap lanjut walaupun target reset/mati
 local function followTargetPlayer(targetPlayer)
-    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    local hrp = char:WaitForChild("HumanoidRootPart")
-    local lastPos = hrp.Position
+    local function follow(char)
+        local hrp = char:WaitForChild("HumanoidRootPart")
+        local lastPos = hrp.Position
+        spawnTendaAt(lastPos)
 
-    spawnTendaAt(lastPos)
-
-    while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
-        task.wait(followDelay)
-        local newPos = targetPlayer.Character.HumanoidRootPart.Position
-        if hasMoved(lastPos, newPos) then
-            deleteTenda()
-            spawnTendaAt(newPos)
-            lastPos = newPos
+        while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+            task.wait(followDelay)
+            local newPos = targetPlayer.Character.HumanoidRootPart.Position
+            if hasMoved(lastPos, newPos) then
+                deleteTenda()
+                spawnTendaAt(newPos)
+                lastPos = newPos
+            end
         end
     end
+
+    if targetPlayer.Character then
+        follow(targetPlayer.Character)
+    end
+
+    -- 🔁 Deteksi mati/reset
+    targetPlayer.CharacterAdded:Connect(function(newChar)
+        if running then
+            Library:Notify("♻️ Target respawned, lanjut follow...", 3)
+            task.wait(1)
+            follow(newChar)
+        end
+    end)
 end
 
--- ✅ Tenda Follow UI
+-- ✅ UI FOLLOW TENDA
 GroupBox:AddInput("TargetName", {
     Default = "",
     Numeric = false,
@@ -171,7 +185,7 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Jika target keluar / masuk lagi
+-- ✅ Jika target keluar dari server
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if running and targetName ~= "" then
         if leavingPlayer.Name:lower() == targetName:lower() or leavingPlayer.DisplayName:lower() == targetName:lower() then
@@ -182,6 +196,7 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     end
 end)
 
+-- ✅ Jika target masuk lagi ke server
 Players.PlayerAdded:Connect(function(joinedPlayer)
     if not running then return end
     if targetName == "" then return end
@@ -194,7 +209,7 @@ Players.PlayerAdded:Connect(function(joinedPlayer)
     end
 end)
 
--- ✅ Fungsi tambahan untuk keluar dari room
+-- ✅ Fungsi keluar dari room
 local function leaveRoom()
     local args = { "Phone", "LeaveRoom" }
     ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
@@ -211,12 +226,11 @@ local function spamInviteLoop()
             if player ~= LocalPlayer then
                 CallingLabel:SetText("Sedang menelepon: " .. player.DisplayName .. " [" .. player.Name .. "]")
                 
-                -- Kirim telepon
                 local args = { "Phone", "InviteToRoom", player }
                 ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
                     :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
 
-                task.wait(0.6) -- Tunggu sebelum keluar room
+                task.wait(0.6)
                 leaveRoom()
                 task.wait(0.4)
             end
