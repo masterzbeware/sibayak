@@ -30,7 +30,7 @@ local currentFollowThread = nil
 local targetName = ""
 local followDelay = 0.5
 
--- ✅ Update Dropdown Player List
+-- ✅ Fungsi: Ambil daftar pemain (selain diri sendiri)
 local function getPlayerNames()
     local list = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -41,7 +41,7 @@ local function getPlayerNames()
     return list
 end
 
--- ✅ Fungsi Hapus Tenda
+-- ✅ Fungsi: Hapus tenda
 local function deleteTenda()
     local args = { "uxrDeleteEvent", "Tenda" }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
@@ -49,7 +49,7 @@ local function deleteTenda()
         :FireServer(unpack(args))
 end
 
--- ✅ Fungsi Spawn Tenda
+-- ✅ Fungsi: Spawn tenda
 local function spawnTendaAt(pos)
     local args = {
         "uxrPlaceEvent", "Tenda",
@@ -63,12 +63,12 @@ local function spawnTendaAt(pos)
         :FireServer(unpack(args))
 end
 
--- ✅ Cek Gerakan
+-- ✅ Fungsi: Cek posisi berubah
 local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
--- ✅ Fungsi Utama: Ikuti Target
+-- ✅ Fungsi Utama: Ikuti target
 local function followTargetPlayer(targetPlayer)
     local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -87,7 +87,7 @@ local function followTargetPlayer(targetPlayer)
     end
 end
 
--- ✅ TextBox Nama Target
+-- ✅ Input manual target
 GroupBox:AddInput("TargetName", {
     Default = "",
     Numeric = false,
@@ -101,7 +101,7 @@ GroupBox:AddInput("TargetName", {
 })
 
 -- ✅ Dropdown Target
-GroupBox:AddDropdown("TargetDropdown", {
+local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
     Values = getPlayerNames(),
     Multi = false,
     Text = "Pilih Target dari List",
@@ -114,7 +114,14 @@ GroupBox:AddDropdown("TargetDropdown", {
     end
 })
 
--- ✅ TextBox Delay Kecepatan
+-- ✅ Tombol Refresh
+GroupBox:AddButton("🔄 Refresh Player List", function()
+    local newList = getPlayerNames()
+    playerDropdown:SetValues(newList)
+    Library:Notify("✅ Daftar pemain diperbarui!", 3)
+end)
+
+-- ✅ Input Delay
 GroupBox:AddInput("FollowDelay", {
     Default = "0.5",
     Numeric = false,
@@ -128,14 +135,14 @@ GroupBox:AddInput("FollowDelay", {
     end
 })
 
--- ✅ Tombol Cancel
+-- ✅ Tombol Cancel Follow
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
     Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
 end)
 
--- ✅ Toggle Aktif
+-- ✅ Toggle Follow
 GroupBox:AddToggle("FollowTenda", {
     Text = "Aktifkan Follow Tenda",
     Default = false,
@@ -174,6 +181,7 @@ GroupBox:AddToggle("FollowTenda", {
 
 -- ✅ Fungsi: Spam Invite ke semua player
 local function spamInviteAll()
+    local count = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             local args = {
@@ -181,10 +189,12 @@ local function spamInviteAll()
                 "InviteToRoom",
                 player
             }
-            ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+            ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
+                :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+            count += 1
         end
     end
-    Library:Notify("📞 Invite terkirim ke semua pemain", 3)
+    Library:Notify("📞 Invite terkirim ke " .. count .. " pemain", 3)
 end
 
 -- ✅ Fungsi: Leave Room
@@ -193,10 +203,11 @@ local function leaveRoom()
         "Phone",
         "LeaveRoom"
     }
-    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
+        :WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
     Library:Notify("🚪 Keluar dari Room", 3)
 end
 
--- ✅ Tombol di GroupBox Telepon
+-- ✅ Tombol Spam & Leave di GroupBox Telepon
 CallBox:AddButton("📞 Spam Invite ke Semua", spamInviteAll)
 CallBox:AddButton("🚪 Leave Room", leaveRoom)
