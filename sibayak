@@ -19,6 +19,8 @@ local Tabs = {
 
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
+local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request") -- ✅ GroupBox ke-3
+local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 
 -- ✅ Variable Global
 local Players = game:GetService("Players")
@@ -29,8 +31,9 @@ local running = false
 local currentFollowThread = nil
 local targetName = ""
 local followDelay = 0.5
+local carryRunning = false
 
--- ✅ Fungsi: Ambil daftar pemain (selain diri sendiri)
+-- ✅ Fungsi Dapatkan Daftar Pemain
 local function getPlayerNames()
     local list = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -41,7 +44,7 @@ local function getPlayerNames()
     return list
 end
 
--- ✅ Fungsi: Hapus tenda
+-- ✅ Fungsi Hapus Tenda
 local function deleteTenda()
     local args = { "uxrDeleteEvent", "Tenda" }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
@@ -49,7 +52,7 @@ local function deleteTenda()
         :FireServer(unpack(args))
 end
 
--- ✅ Fungsi: Spawn tenda
+-- ✅ Fungsi Spawn Tenda
 local function spawnTendaAt(pos)
     local args = {
         "uxrPlaceEvent", "Tenda",
@@ -63,12 +66,12 @@ local function spawnTendaAt(pos)
         :FireServer(unpack(args))
 end
 
--- ✅ Fungsi: Cek posisi berubah
+-- ✅ Cek Gerakan
 local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
--- ✅ Fungsi Utama: Ikuti target
+-- ✅ Fungsi Utama: Ikuti Target
 local function followTargetPlayer(targetPlayer)
     local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -87,7 +90,7 @@ local function followTargetPlayer(targetPlayer)
     end
 end
 
--- ✅ Input manual target
+-- ✅ TextBox Nama Target
 GroupBox:AddInput("TargetName", {
     Default = "",
     Numeric = false,
@@ -114,14 +117,14 @@ local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
     end
 })
 
--- ✅ Tombol Refresh
+-- ✅ Tombol Refresh Dropdown
 GroupBox:AddButton("🔄 Refresh Player List", function()
     local newList = getPlayerNames()
     playerDropdown:SetValues(newList)
     Library:Notify("✅ Daftar pemain diperbarui!", 3)
 end)
 
--- ✅ Input Delay
+-- ✅ TextBox Delay Kecepatan
 GroupBox:AddInput("FollowDelay", {
     Default = "0.5",
     Numeric = false,
@@ -135,14 +138,14 @@ GroupBox:AddInput("FollowDelay", {
     end
 })
 
--- ✅ Tombol Cancel Follow
+-- ✅ Tombol Cancel
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
     Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
 end)
 
--- ✅ Toggle Follow
+-- ✅ Toggle Aktif
 GroupBox:AddToggle("FollowTenda", {
     Text = "Aktifkan Follow Tenda",
     Default = false,
@@ -181,20 +184,22 @@ GroupBox:AddToggle("FollowTenda", {
 
 -- ✅ Fungsi: Spam Invite ke semua player
 local function spamInviteAll()
-    local count = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
+            local callingName = player.DisplayName .. " [" .. player.Name .. "]"
+            CallingLabel:SetText("Sedang menelepon: " .. callingName)
+
             local args = {
                 "Phone",
                 "InviteToRoom",
                 player
             }
-            ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
-                :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
-            count += 1
+            ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+            task.wait(0.2)
         end
     end
-    Library:Notify("📞 Invite terkirim ke " .. count .. " pemain", 3)
+    CallingLabel:SetText("✅ Selesai menelepon semua")
+    Library:Notify("📞 Invite terkirim ke semua pemain", 3)
 end
 
 -- ✅ Fungsi: Leave Room
@@ -203,11 +208,57 @@ local function leaveRoom()
         "Phone",
         "LeaveRoom"
     }
-    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
-        :WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
     Library:Notify("🚪 Keluar dari Room", 3)
 end
 
--- ✅ Tombol Spam & Leave di GroupBox Telepon
+-- ✅ Tombol di GroupBox Telepon
 CallBox:AddButton("📞 Spam Invite ke Semua", spamInviteAll)
 CallBox:AddButton("🚪 Leave Room", leaveRoom)
+CallBox:AddButton("❌ Clear Info", function()
+    CallingLabel:SetText("Sedang menelepon: -")
+end)
+
+-- ✅ Hentikan follow jika target keluar dari game
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if running and targetName ~= "" then
+        if leavingPlayer.Name:lower() == targetName:lower() or leavingPlayer.DisplayName:lower() == targetName:lower() then
+            running = false
+            deleteTenda()
+            Library:Notify("🚪 Target keluar, follow otomatis dihentikan", 3)
+        end
+    end
+end)
+
+-- ✅ Fungsi: Spam Carry ke Semua Pemain
+local function spamCarryAll()
+    carryRunning = true
+    for _, player in ipairs(Players:GetPlayers()) do
+        if not carryRunning then break end
+        if player ~= LocalPlayer then
+            local args = {
+                "Request",
+                player
+            }
+            ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
+            Library:Notify("📦 Mengirim carry ke: " .. player.DisplayName, 2)
+            task.wait(0.4)
+        end
+    end
+    carryRunning = false
+    Library:Notify("✅ Selesai spam carry ke semua", 3)
+end
+
+-- ✅ Fungsi: Membatalkan Carry
+local function cancelCarry()
+    carryRunning = false
+    local args = {
+        "Clavswoshy"
+    }
+    ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
+    Library:Notify("❌ Carry request dibatalkan", 3)
+end
+
+-- ✅ Tombol di GroupBox Carry
+CarryBox:AddButton("📦 Spam Carry ke Semua", spamCarryAll)
+CarryBox:AddButton("❌ Cancel Carry Request", cancelCarry)
