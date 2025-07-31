@@ -1,0 +1,113 @@
+-- 🏕️ TENDA FOLLOW CEPAT (NO LAG, WITH CANCEL)
+
+-- Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RemoteEvent = ReplicatedStorage["uxrPlacementSystem#RS@4.0"].placementEvents.RemoteEvent
+local localPlayer = Players.LocalPlayer
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TendaFollowGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 180, 0, 90)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.2
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local textbox = Instance.new("TextBox")
+textbox.Size = UDim2.new(1, -10, 0, 40)
+textbox.Position = UDim2.new(0, 5, 0, 5)
+textbox.PlaceholderText = "Masukkan Nama Pemain"
+textbox.Text = ""
+textbox.ClearTextOnFocus = false
+textbox.TextScaled = true
+textbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+textbox.TextColor3 = Color3.new(1, 1, 1)
+textbox.Parent = frame
+
+local cancelButton = Instance.new("TextButton")
+cancelButton.Size = UDim2.new(1, -10, 0, 30)
+cancelButton.Position = UDim2.new(0, 5, 0, 50)
+cancelButton.Text = "❌ Cancel"
+cancelButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
+cancelButton.TextColor3 = Color3.new(1, 1, 1)
+cancelButton.TextScaled = true
+cancelButton.Parent = frame
+
+-- Config
+local movementThreshold = 1.2 -- kurangin agar lebih sensitif
+local checkInterval = 0.05 -- super cepat
+
+-- Vars
+local currentTarget = nil
+local lastPosition = nil
+local trackingActive = false
+
+-- Function spawn & delete
+local function spawnTenda(pos)
+ RemoteEvent:FireServer(
+  "uxrPlaceEvent", "Tenda",
+  pos.X, pos.Y, pos.Z,
+  0.1096, 0, 0.9939,
+  0, 1, 0,
+  -0.9939, 0, 0.1096
+ )
+end
+
+local function deleteTenda()
+ RemoteEvent:FireServer("uxrDeleteEvent", "Tenda")
+end
+
+-- Loop follow cepat
+task.spawn(function()
+ while true do
+  if trackingActive and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+   local hrp = currentTarget.Character.HumanoidRootPart
+   local currentPos = hrp.Position
+
+   if lastPosition then
+    if (currentPos - lastPosition).Magnitude >= movementThreshold then
+     deleteTenda()
+     task.wait(0.01)
+     spawnTenda(currentPos + Vector3.new(0, 2, 0))
+     lastPosition = currentPos
+    end
+   else
+    spawnTenda(currentPos + Vector3.new(0, 2, 0))
+    lastPosition = currentPos
+   end
+  end
+  task.wait(checkInterval)
+ end
+end)
+
+-- Ketik nama target
+textbox.FocusLost:Connect(function()
+ local name = textbox.Text
+ local found = Players:FindFirstChild(name)
+ if found then
+  currentTarget = found
+  lastPosition = nil
+  trackingActive = true
+  textbox.Text = "🎯 " .. name
+ else
+  currentTarget = nil
+  trackingActive = false
+  textbox.Text = "❌ Tidak Ditemukan"
+ end
+end)
+
+-- Tombol cancel
+cancelButton.MouseButton1Click:Connect(function()
+ trackingActive = false
+ currentTarget = nil
+ lastPosition = nil
+ textbox.Text = ""
+ deleteTenda()
+end)
