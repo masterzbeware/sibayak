@@ -194,16 +194,30 @@ Players.PlayerAdded:Connect(function(joinedPlayer)
     end
 end)
 
--- ✅ Spam Telepon
+-- ✅ Fungsi tambahan untuk keluar dari room
+local function leaveRoom()
+    local args = { "Phone", "LeaveRoom" }
+    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
+        :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+end
+
+-- ✅ Spam Telepon Loop (telepon -> leaveroom -> lanjut)
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
-        for _, player in ipairs(Players:GetPlayers()) do
+        local playersList = Players:GetPlayers()
+        for _, player in ipairs(playersList) do
             if not spamCallRunning then break end
             if player ~= LocalPlayer then
                 CallingLabel:SetText("Sedang menelepon: " .. player.DisplayName .. " [" .. player.Name .. "]")
+                
+                -- Kirim telepon
                 local args = { "Phone", "InviteToRoom", player }
-                ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+                ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
+                    :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+
+                task.wait(0.6) -- Tunggu sebelum keluar room
+                leaveRoom()
                 task.wait(0.4)
             end
         end
@@ -214,7 +228,7 @@ end
 CallBox:AddButton("📞 Mulai Spam Telepon", function()
     if not spamCallRunning then
         task.spawn(spamInviteLoop)
-        Library:Notify("📞 Memulai spam telepon terus-menerus...", 3)
+        Library:Notify("📞 Memulai spam telepon looping...", 3)
     end
 end)
 
