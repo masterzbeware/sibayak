@@ -1,113 +1,100 @@
--- 🏕️ TENDA MENGIKUTI PEMAIN + GUI + CANCEL (DELTA EXECUTOR READY)
+--[[
+    FUNGSI:
+    - Menampilkan GUI TextBox untuk ketik nama pemain
+    - Cari player berdasarkan DisplayName atau Username
+    - Tenda akan mengikuti pergerakan player tersebut
+--]]
 
--- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RemoteEvent = ReplicatedStorage["uxrPlacementSystem#RS@4.0"].placementEvents.RemoteEvent
-local localPlayer = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
--- GUI Setup
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TendaFollowGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+-- BUAT GUI
+local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "TendaFollowerGUI"
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 180, 0, 90)
-frame.Position = UDim2.new(0, 10, 0, 10)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BackgroundTransparency = 0.2
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
+local textBox = Instance.new("TextBox", screenGui)
+textBox.Size = UDim2.new(0, 300, 0, 50)
+textBox.Position = UDim2.new(0.5, -150, 0, 100)
+textBox.PlaceholderText = "Masukkan Username atau DisplayName"
+textBox.Text = ""
+textBox.Font = Enum.Font.SourceSansBold
+textBox.TextSize = 20
+textBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+textBox.ClearTextOnFocus = false
 
-local textbox = Instance.new("TextBox")
-textbox.Size = UDim2.new(1, -10, 0, 40)
-textbox.Position = UDim2.new(0, 5, 0, 5)
-textbox.PlaceholderText = "Masukkan Nama Pemain"
-textbox.Text = ""
-textbox.ClearTextOnFocus = false
-textbox.TextScaled = true
-textbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-textbox.TextColor3 = Color3.new(1, 1, 1)
-textbox.Parent = frame
-
-local cancelButton = Instance.new("TextButton")
-cancelButton.Size = UDim2.new(1, -10, 0, 30)
-cancelButton.Position = UDim2.new(0, 5, 0, 50)
-cancelButton.Text = "❌ Cancel"
-cancelButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
-cancelButton.TextColor3 = Color3.new(1, 1, 1)
-cancelButton.TextScaled = true
-cancelButton.Parent = frame
-
--- Tracking Config
-local movementThreshold = 2
-local checkInterval = 0.2
-local currentTarget = nil
-local lastPosition = nil
-local trackingActive = false
-
--- Tenda Functions
-local function spawnTenda(pos)
- RemoteEvent:FireServer(
-  "uxrPlaceEvent",
-  "Tenda",
-  pos.X, pos.Y, pos.Z,
-  0.1096, 0, 0.9939,
-  0, 1, 0,
-  -0.9939, 0, 0.1096
- )
-end
-
+-- FUNGSI HAPUS TENDA
 local function deleteTenda()
- RemoteEvent:FireServer("uxrDeleteEvent", "Tenda")
+    local args = {
+        "uxrDeleteEvent",
+        "Tenda"
+    }
+    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+        :FireServer(unpack(args))
 end
 
--- Loop untuk tracking pergerakan target
-task.spawn(function()
- while true do
-  if trackingActive and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
-   local hrp = currentTarget.Character.HumanoidRootPart
-   local currentPos = hrp.Position
+-- FUNGSI SPAWN TENDA DI POSISI
+local function spawnTendaAt(pos)
+    local args = {
+        "uxrPlaceEvent",
+        "Tenda",
+        pos.X,
+        pos.Y,
+        pos.Z,
+        0.538154125213623, 0, 0.8428464531898499,
+        0, 1, 0,
+        -0.8428464531898499, 0, 0.538154125213623
+    }
+    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+        :FireServer(unpack(args))
+end
 
-   if lastPosition then
-    local moved = (currentPos - lastPosition).Magnitude
-    if moved >= movementThreshold then
-     deleteTenda()
-     task.wait(0.05)
-     spawnTenda(currentPos + Vector3.new(0, 2, 0))
-     lastPosition = currentPos
-    end
-   else
-    spawnTenda(currentPos + Vector3.new(0, 2, 0))
-    lastPosition = currentPos
-   end
-  end
-  task.wait(checkInterval)
- end
-end)
+-- CEK APAKAH POSISI BERUBAH
+local function hasMoved(lastPos, newPos)
+    return (lastPos - newPos).Magnitude > 1
+end
 
--- Saat TextBox diisi
-textbox.FocusLost:Connect(function()
- local name = textbox.Text
- local found = Players:FindFirstChild(name)
- if found then
-  currentTarget = found
-  lastPosition = nil
-  trackingActive = true
-  textbox.Text = "🎯 " .. name
- else
-  currentTarget = nil
-  trackingActive = false
-  textbox.Text = "❌ Tidak Ditemukan"
- end
-end)
+-- FUNGSI FOLLOW PLAYER TARGET
+local function followTargetPlayer(targetPlayer)
+    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    local lastPos = hrp.Position
 
--- Saat Cancel ditekan
-cancelButton.MouseButton1Click:Connect(function()
- trackingActive = false
- currentTarget = nil
- lastPosition = nil
- textbox.Text = ""
- deleteTenda()
+    spawnTendaAt(lastPos)
+
+    while targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+        wait(0.5)
+        local newPos = targetPlayer.Character.HumanoidRootPart.Position
+        if hasMoved(lastPos, newPos) then
+            deleteTenda()
+            spawnTendaAt(newPos)
+            lastPos = newPos
+        end
+    end
+end
+
+-- KETIKA ENTER DITEKAN DI TEXTBOX
+textBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local input = textBox.Text:lower()
+        local targetPlayer = nil
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Name:lower() == input or player.DisplayName:lower() == input then
+                targetPlayer = player
+                break
+            end
+        end
+
+        if targetPlayer then
+            spawn(function()
+                followTargetPlayer(targetPlayer)
+            end)
+        else
+            warn("Pemain tidak ditemukan:", input)
+        end
+    end
 end)
