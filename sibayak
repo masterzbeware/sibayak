@@ -21,7 +21,6 @@ local Tabs = {
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
-local InfoBox = Tabs.Info:AddLeftGroupbox("Status / Keterangan")
 
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
@@ -205,7 +204,7 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Target keluar server
+-- ✅ Target keluar & join ulang
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if running and followTarget and leavingPlayer == followTarget then
         running = false
@@ -214,7 +213,6 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     end
 end)
 
--- ✅ Target join ulang
 Players.PlayerAdded:Connect(function(joinedPlayer)
     if targetName == "" or not running then return end
     if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
@@ -226,7 +224,7 @@ Players.PlayerAdded:Connect(function(joinedPlayer)
     end
 end)
 
--- ✅ Fungsi leave room
+-- ✅ Leave Room Function
 local function leaveRoom()
     local args = { "Phone", "LeaveRoom" }
     ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
@@ -237,8 +235,7 @@ end
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
-        local playersList = Players:GetPlayers()
-        for _, player in ipairs(playersList) do
+        for _, player in ipairs(Players:GetPlayers()) do
             if not spamCallRunning then break end
             if player ~= LocalPlayer then
                 CallingLabel:SetText("Calling: " .. player.DisplayName .. " [" .. player.Name .. "]")
@@ -297,9 +294,19 @@ CarryBox:AddButton("Stop Spam Carry", function()
     Library:Notify("Carry spam stopped.", 3)
 end)
 
--- ✅ Info Tab - Tanpa Emoji, Rapi, Profesional
-InfoBox:AddLabel("Script developed by MasterZ")
-InfoBox:AddLabel("Phone Spam: Loops call and exits room automatically")
-InfoBox:AddLabel("Carry Spam: Repeated carry requests to all players")
-InfoBox:AddLabel("Tent Follow: Automatically follows target after death or rejoin")
-InfoBox:AddLabel("Interface powered by Obsidian UI Framework")
+-- ✅ Info Tab - 1 Kotak Rapi, Profesional
+Tabs.Info:AddParagraph("Information", [[
+Script developed by MasterZ
+
+Phone Spam:
+- Loops call to every player and leaves the room automatically
+
+Carry Request Spam:
+- Sends carry requests repeatedly to all available players
+
+Tent Follow System:
+- Automatically follows the target player
+- Resumes follow after character death, respawn, or rejoin
+
+Powered by Obsidian UI Framework
+]])
