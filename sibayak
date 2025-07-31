@@ -1,4 +1,4 @@
--- 🏕️ TENDA FOLLOW CEPAT (NO LAG, WITH CANCEL)
+-- 🏕️ TENDA MENGIKUTI PEMAIN + GUI + CANCEL (DELTA EXECUTOR READY)
 
 -- Services
 local Players = game:GetService("Players")
@@ -40,19 +40,18 @@ cancelButton.TextColor3 = Color3.new(1, 1, 1)
 cancelButton.TextScaled = true
 cancelButton.Parent = frame
 
--- Config
-local movementThreshold = 1.2 -- kurangin agar lebih sensitif
-local checkInterval = 0.05 -- super cepat
-
--- Vars
+-- Tracking Config
+local movementThreshold = 2
+local checkInterval = 0.2
 local currentTarget = nil
 local lastPosition = nil
 local trackingActive = false
 
--- Function spawn & delete
+-- Tenda Functions
 local function spawnTenda(pos)
  RemoteEvent:FireServer(
-  "uxrPlaceEvent", "Tenda",
+  "uxrPlaceEvent",
+  "Tenda",
   pos.X, pos.Y, pos.Z,
   0.1096, 0, 0.9939,
   0, 1, 0,
@@ -64,7 +63,7 @@ local function deleteTenda()
  RemoteEvent:FireServer("uxrDeleteEvent", "Tenda")
 end
 
--- Loop follow cepat
+-- Loop untuk tracking pergerakan target
 task.spawn(function()
  while true do
   if trackingActive and currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
@@ -72,9 +71,10 @@ task.spawn(function()
    local currentPos = hrp.Position
 
    if lastPosition then
-    if (currentPos - lastPosition).Magnitude >= movementThreshold then
+    local moved = (currentPos - lastPosition).Magnitude
+    if moved >= movementThreshold then
      deleteTenda()
-     task.wait(0.01)
+     task.wait(0.05)
      spawnTenda(currentPos + Vector3.new(0, 2, 0))
      lastPosition = currentPos
     end
@@ -87,7 +87,7 @@ task.spawn(function()
  end
 end)
 
--- Ketik nama target
+-- Saat TextBox diisi
 textbox.FocusLost:Connect(function()
  local name = textbox.Text
  local found = Players:FindFirstChild(name)
@@ -103,7 +103,7 @@ textbox.FocusLost:Connect(function()
  end
 end)
 
--- Tombol cancel
+-- Saat Cancel ditekan
 cancelButton.MouseButton1Click:Connect(function()
  trackingActive = false
  currentTarget = nil
