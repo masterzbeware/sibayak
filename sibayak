@@ -73,6 +73,7 @@ local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
+-- ✅ PERUBAHAN UTAMA: followTargetPlayer
 local function followTargetPlayer(targetPlayer)
     followTarget = targetPlayer
 
@@ -80,6 +81,15 @@ local function followTargetPlayer(targetPlayer)
         local hrp = char:WaitForChild("HumanoidRootPart")
         local lastPos = hrp.Position
         spawnTendaAt(lastPos)
+
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local diedConnection
+        if humanoid then
+            diedConnection = humanoid.Died:Connect(function()
+                deleteTenda()
+                Library:Notify("💀 Target mati, tenda dihentikan sementara...", 3)
+            end)
+        end
 
         while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
             task.wait(followDelay)
@@ -90,17 +100,25 @@ local function followTargetPlayer(targetPlayer)
                 lastPos = newPos
             end
         end
+
+        if diedConnection then
+            diedConnection:Disconnect()
+        end
     end
 
     if targetPlayer.Character then
-        follow(targetPlayer.Character)
+        task.spawn(function()
+            follow(targetPlayer.Character)
+        end)
     end
 
     targetPlayer.CharacterAdded:Connect(function(newChar)
         if running then
             Library:Notify("♻️ Target respawned, lanjut follow...", 3)
             task.wait(1)
-            follow(newChar)
+            task.spawn(function()
+                follow(newChar)
+            end)
         end
     end)
 end
@@ -188,7 +206,7 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Deteksi jika target keluar dari server
+-- ✅ Deteksi jika target keluar server
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if running and followTarget and leavingPlayer == followTarget then
         running = false
@@ -197,7 +215,7 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
     end
 end)
 
--- ✅ Deteksi jika target masuk server lagi
+-- ✅ Deteksi target join ulang
 Players.PlayerAdded:Connect(function(joinedPlayer)
     if targetName == "" or not running then return end
     if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
@@ -216,7 +234,7 @@ local function leaveRoom()
         :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
 end
 
--- ✅ Spam Telepon Loop ke semua (telepon ➜ leaveroom ➜ lanjut)
+-- ✅ Spam Telepon Loop
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
@@ -250,7 +268,7 @@ CallBox:AddButton("⛔ Berhentikan Telepon", function()
     Library:Notify("⛔ Spam telepon dihentikan", 3)
 end)
 
--- ✅ Spam Carry Loop ke semua
+-- ✅ Spam Carry Loop
 local function spamCarryLoop()
     carryRunning = true
     while carryRunning do
@@ -280,7 +298,7 @@ CarryBox:AddButton("🛑 Stop Spam Carry Loop", function()
     Library:Notify("⛔ Loop carry request dihentikan", 3)
 end)
 
--- ✅ Info Tab Label
+-- ✅ Info Tab
 InfoBox:AddLabel("📌 Script by MasterZ")
 InfoBox:AddLabel("📞 Spam Telepon = Looping semua + leave room")
 InfoBox:AddLabel("📦 Spam Carry = Looping semua pemain")
