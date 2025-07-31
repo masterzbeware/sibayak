@@ -1,48 +1,81 @@
---[[
-    FUNGSI:
-    - Menampilkan GUI TextBox untuk ketik nama pemain
-    - Cari player berdasarkan DisplayName atau Username
-    - Tenda akan mengikuti pergerakan player tersebut
---]]
+-- ✅ Obsidian UI Setup
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+local Window = Library:CreateWindow({
+    Title = "Tenda Follower UI",
+    Footer = "by MasterZ",
+    Icon = 0,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main", "user")
+}
+
+local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
+
+-- ✅ Variable Global
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- BUAT GUI
-local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-screenGui.Name = "TendaFollowerGUI"
+local running = false
+local currentFollowThread = nil
+local targetName = ""
+local followDelay = 0.5
 
-local textBox = Instance.new("TextBox", screenGui)
-textBox.Size = UDim2.new(0, 300, 0, 50)
-textBox.Position = UDim2.new(0.5, -150, 0, 100)
-textBox.PlaceholderText = "Masukkan Username atau DisplayName"
-textBox.Text = ""
-textBox.Font = Enum.Font.SourceSansBold
-textBox.TextSize = 20
-textBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-textBox.ClearTextOnFocus = false
+-- ✅ TextBox Nama Target
+GroupBox:AddInput("TargetName", {
+    Default = "",
+    Numeric = false,
+    Finished = false,
+    Text = "Target DisplayName / Username",
+    Tooltip = "Masukkan nama target yang akan diikuti",
+    Placeholder = "Contoh: Player123",
+    Callback = function(value)
+        targetName = value
+    end
+})
 
--- FUNGSI HAPUS TENDA
+-- ✅ TextBox Delay Kecepatan
+GroupBox:AddInput("FollowDelay", {
+    Default = "0.5",
+    Numeric = false,
+    Finished = true,
+    Text = "Delay (detik)",
+    Tooltip = "Delay pergerakan tenda mengikuti target",
+    Placeholder = "Contoh: 0.2",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then followDelay = num end
+    end
+})
+
+-- ✅ Tombol Cancel
+GroupBox:AddButton("Cancel Follow", function()
+    running = false
+    Library:Notify("⛔ Follow dihentikan", 3)
+end)
+
+-- ✅ Fungsi Hapus Tenda
 local function deleteTenda()
-    local args = {
-        "uxrDeleteEvent",
-        "Tenda"
-    }
+    local args = { "uxrDeleteEvent", "Tenda" }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
         :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
         :FireServer(unpack(args))
 end
 
--- FUNGSI SPAWN TENDA DI POSISI
+-- ✅ Fungsi Spawn Tenda
 local function spawnTendaAt(pos)
     local args = {
-        "uxrPlaceEvent",
-        "Tenda",
-        pos.X,
-        pos.Y,
-        pos.Z,
+        "uxrPlaceEvent", "Tenda",
+        pos.X, pos.Y, pos.Z,
         0.538154125213623, 0, 0.8428464531898499,
         0, 1, 0,
         -0.8428464531898499, 0, 0.538154125213623
@@ -52,12 +85,12 @@ local function spawnTendaAt(pos)
         :FireServer(unpack(args))
 end
 
--- CEK APAKAH POSISI BERUBAH
+-- ✅ Cek Gerakan
 local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
 end
 
--- FUNGSI FOLLOW PLAYER TARGET
+-- ✅ Fungsi Utama: Ikuti Target
 local function followTargetPlayer(targetPlayer)
     local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
@@ -65,8 +98,8 @@ local function followTargetPlayer(targetPlayer)
 
     spawnTendaAt(lastPos)
 
-    while targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
-        wait(0.5)
+    while running and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+        task.wait(followDelay)
         local newPos = targetPlayer.Character.HumanoidRootPart.Position
         if hasMoved(lastPos, newPos) then
             deleteTenda()
@@ -76,25 +109,38 @@ local function followTargetPlayer(targetPlayer)
     end
 end
 
--- KETIKA ENTER DITEKAN DI TEXTBOX
-textBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local input = textBox.Text:lower()
-        local targetPlayer = nil
-
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Name:lower() == input or player.DisplayName:lower() == input then
-                targetPlayer = player
-                break
+-- ✅ Toggle Aktif
+GroupBox:AddToggle("FollowTenda", {
+    Text = "Aktifkan Follow Tenda",
+    Default = false,
+    Tooltip = "Tenda akan mengikuti target yang dimasukkan",
+    Callback = function(state)
+        running = state
+        if state then
+            if targetName == "" then
+                Library:Notify("❗ Masukkan nama target terlebih dahulu", 3)
+                return
             end
-        end
 
-        if targetPlayer then
-            spawn(function()
-                followTargetPlayer(targetPlayer)
-            end)
+            local targetPlayer = nil
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Name:lower() == targetName:lower() or player.DisplayName:lower() == targetName:lower() then
+                    targetPlayer = player
+                    break
+                end
+            end
+
+            if targetPlayer then
+                Library:Notify("✅ Mulai mengikuti: " .. targetPlayer.Name, 3)
+                currentFollowThread = task.spawn(function()
+                    followTargetPlayer(targetPlayer)
+                end)
+            else
+                Library:Notify("❌ Player tidak ditemukan", 3)
+            end
         else
-            warn("Pemain tidak ditemukan:", input)
+            running = false
+            Library:Notify("⛔ Follow dimatikan", 3)
         end
-    end
-end)
+    end,
+})
