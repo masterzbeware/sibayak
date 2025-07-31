@@ -18,6 +18,7 @@ local Tabs = {
 }
 
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
+local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 
 -- ✅ Variable Global
 local Players = game:GetService("Players")
@@ -28,7 +29,6 @@ local running = false
 local currentFollowThread = nil
 local targetName = ""
 local followDelay = 0.5
-local currentHighlight = nil
 
 -- ✅ Update Dropdown Player List
 local function getPlayerNames()
@@ -66,20 +66,6 @@ end
 -- ✅ Cek Gerakan
 local function hasMoved(lastPos, newPos)
     return (lastPos - newPos).Magnitude > 1
-end
-
--- ✅ Highlight Target
-local function applyHighlight(targetPlayer)
-    if currentHighlight then currentHighlight:Destroy() end
-    local char = targetPlayer.Character or targetPlayer.CharacterAdded:Wait()
-    currentHighlight = Instance.new("Highlight")
-    currentHighlight.Adornee = char
-    currentHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    currentHighlight.FillColor = Color3.fromRGB(255, 255, 0)
-    currentHighlight.OutlineColor = Color3.fromRGB(255, 0, 0)
-    currentHighlight.FillTransparency = 0.5
-    currentHighlight.OutlineTransparency = 0
-    currentHighlight.Parent = char
 end
 
 -- ✅ Fungsi Utama: Ikuti Target
@@ -146,10 +132,6 @@ GroupBox:AddInput("FollowDelay", {
 GroupBox:AddButton("Cancel Follow", function()
     running = false
     deleteTenda()
-    if currentHighlight then
-        currentHighlight:Destroy()
-        currentHighlight = nil
-    end
     Library:Notify("⛔ Follow dihentikan & tenda dihapus", 3)
 end)
 
@@ -175,7 +157,6 @@ GroupBox:AddToggle("FollowTenda", {
             end
 
             if targetPlayer then
-                applyHighlight(targetPlayer)
                 Library:Notify("✅ Mulai mengikuti: " .. targetPlayer.Name, 3)
                 currentFollowThread = task.spawn(function()
                     followTargetPlayer(targetPlayer)
@@ -186,11 +167,36 @@ GroupBox:AddToggle("FollowTenda", {
         else
             running = false
             deleteTenda()
-            if currentHighlight then
-                currentHighlight:Destroy()
-                currentHighlight = nil
-            end
             Library:Notify("⛔ Follow dimatikan & tenda dihapus", 3)
         end
     end,
 })
+
+-- ✅ Fungsi: Spam Invite ke semua player
+local function spamInviteAll()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local args = {
+                "Phone",
+                "InviteToRoom",
+                player
+            }
+            ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+        end
+    end
+    Library:Notify("📞 Invite terkirim ke semua pemain", 3)
+end
+
+-- ✅ Fungsi: Leave Room
+local function leaveRoom()
+    local args = {
+        "Phone",
+        "LeaveRoom"
+    }
+    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules"):WaitForChild("Remote"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+    Library:Notify("🚪 Keluar dari Room", 3)
+end
+
+-- ✅ Tombol di GroupBox Telepon
+CallBox:AddButton("📞 Spam Invite ke Semua", spamInviteAll)
+CallBox:AddButton("🚪 Leave Room", leaveRoom)
