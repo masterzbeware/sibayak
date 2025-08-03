@@ -18,7 +18,7 @@ local Tabs = {
     Main = Window:AddTab("Main", "user"),
 }
 
--- ✅ GroupBox
+-- ✅ GroupBoxes
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
@@ -39,6 +39,8 @@ local blinkRunning = false
 local rotateRunning = false
 local targetName = ""
 local followDelay = 0.5
+local blinkDelay = 0.15
+local rotateDelay = 0.2
 local followTarget = nil
 
 -- ✅ Utility Functions
@@ -326,7 +328,7 @@ EffectBox:AddToggle("BlinkTenda", {
                         pos = LocalPlayer.Character.HumanoidRootPart.Position
                     end
                     spawnTendaAt(pos)
-                    task.wait(0.15)
+                    task.wait(blinkDelay)
                 end
             end)
         else
@@ -334,6 +336,22 @@ EffectBox:AddToggle("BlinkTenda", {
             Library:Notify("Tenda blink dihentikan", 3)
         end
     end,
+})
+
+EffectBox:AddInput("BlinkDelayInput", {
+    Default = tostring(blinkDelay),
+    Numeric = false,
+    Finished = true,
+    Text = "Kecepatan Blink (detik)",
+    Tooltip = "Delay antar blink tenda, makin kecil makin cepat",
+    Placeholder = "Contoh: 0.1",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then
+            blinkDelay = num
+            Library:Notify("Blink delay diatur ke " .. blinkDelay, 3)
+        end
+    end
 })
 
 EffectBox:AddToggle("RotateTenda", {
@@ -372,7 +390,7 @@ EffectBox:AddToggle("RotateTenda", {
                         :FireServer(unpack(args))
 
                     angle = (angle + 30) % 360
-                    task.wait(0.2)
+                    task.wait(rotateDelay)
                 end
             end)
         else
@@ -380,4 +398,20 @@ EffectBox:AddToggle("RotateTenda", {
             Library:Notify("Rotasi tenda dihentikan", 3)
         end
     end,
+})
+
+EffectBox:AddInput("RotateDelayInput", {
+    Default = tostring(rotateDelay),
+    Numeric = false,
+    Finished = true,
+    Text = "Kecepatan Putar (detik)",
+    Tooltip = "Delay antar rotasi tenda, makin kecil makin cepat",
+    Placeholder = "Contoh: 0.2",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then
+            rotateDelay = num
+            Library:Notify("Rotasi delay diatur ke " .. rotateDelay, 3)
+        end
+    end
 })
