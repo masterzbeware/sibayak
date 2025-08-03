@@ -18,10 +18,11 @@ local Tabs = {
     Main = Window:AddTab("Main", "user"),
 }
 
--- ✅ GroupBox
+-- ✅ GroupBoxes
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
+local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda") -- Tambahan
 
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
@@ -34,6 +35,9 @@ local LocalPlayer = Players.LocalPlayer
 local running = false
 local carryRunning = false
 local spamCallRunning = false
+local blinkRunning = false
+local rotateRunning = false
+
 local targetName = ""
 local followDelay = 0.5
 local followTarget = nil
@@ -298,3 +302,66 @@ CarryBox:AddButton("Stop Spam Carry", function()
     CarryingLabel:SetText("Carry request stopped.")
     Library:Notify("Carry spam stopped.", 3)
 end)
+
+-- ✅ Efek Tenda: Blink dan Rotasi
+EffectBox:AddToggle("BlinkTenda", {
+    Text = "Blink/Flash Tenda",
+    Default = false,
+    Tooltip = "Tenda akan dihapus dan dipasang terus menerus",
+    Callback = function(state)
+        blinkRunning = state
+        if state then
+            Library:Notify("Tenda blink dimulai", 3)
+            task.spawn(function()
+                while blinkRunning do
+                    deleteTenda()
+                    spawnTendaAt(LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new())
+                    task.wait(0.15)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Tenda blink dihentikan", 3)
+        end
+    end,
+})
+
+EffectBox:AddToggle("RotateTenda", {
+    Text = "Putar-Putar Tenda",
+    Default = false,
+    Tooltip = "Tenda akan dipasang dengan rotasi berputar",
+    Callback = function(state)
+        rotateRunning = state
+        if state then
+            Library:Notify("Rotasi tenda dimulai", 3)
+            task.spawn(function()
+                local angle = 0
+                while rotateRunning do
+                    deleteTenda()
+                    local pos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new()
+                    local rad = math.rad(angle)
+                    local cos = math.cos(rad)
+                    local sin = math.sin(rad)
+
+                    local args = {
+                        "uxrPlaceEvent", "Tenda",
+                        pos.X, pos.Y, pos.Z,
+                        cos, 0, sin,
+                        0, 1, 0,
+                        -sin, 0, cos
+                    }
+
+                    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+                        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+                        :FireServer(unpack(args))
+
+                    angle = (angle + 30) % 360
+                    task.wait(0.2)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Rotasi tenda dihentikan", 3)
+        end
+    end,
+})
