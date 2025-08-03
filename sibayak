@@ -18,11 +18,11 @@ local Tabs = {
     Main = Window:AddTab("Main", "user"),
 }
 
--- ✅ GroupBoxes
+-- ✅ GroupBox
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
-local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda") -- ✅ Tambahan fitur efek
+local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda")
 
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
@@ -37,7 +37,6 @@ local carryRunning = false
 local spamCallRunning = false
 local blinkRunning = false
 local rotateRunning = false
-
 local targetName = ""
 local followDelay = 0.5
 local followTarget = nil
@@ -212,9 +211,12 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Perbaikan: Handle Target Keluar / Masuk
+-- ✅ Handle Target Keluar / Masuk
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if followTarget and leavingPlayer == followTarget then
+        running = false
+        blinkRunning = false
+        rotateRunning = false
         followTarget = nil
         deleteTenda()
         Library:Notify("Target left the game. Waiting for them to rejoin.", 3)
@@ -222,14 +224,16 @@ Players.PlayerRemoving:Connect(function(leavingPlayer)
 end)
 
 Players.PlayerAdded:Connect(function(joinedPlayer)
-    if not running or targetName == "" then return end
+    if targetName == "" then return end
     if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
         followTarget = joinedPlayer
         Library:Notify("Target rejoined. Resuming follow.", 3)
         task.wait(1)
-        task.spawn(function()
-            followTargetPlayer(joinedPlayer)
-        end)
+        if running then
+            task.spawn(function()
+                followTargetPlayer(joinedPlayer)
+            end)
+        end
     end
 end)
 
@@ -303,7 +307,7 @@ CarryBox:AddButton("Stop Spam Carry", function()
     Library:Notify("Carry spam stopped.", 3)
 end)
 
--- ✅ Efek Tenda: Blink dan Rotasi (mengikuti followTarget)
+-- ✅ Efek Tenda: Blink dan Rotasi
 EffectBox:AddToggle("BlinkTenda", {
     Text = "Blink/Flash Tenda",
     Default = false,
@@ -350,6 +354,7 @@ EffectBox:AddToggle("RotateTenda", {
                     elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                         pos = LocalPlayer.Character.HumanoidRootPart.Position
                     end
+
                     local rad = math.rad(angle)
                     local cos = math.cos(rad)
                     local sin = math.sin(rad)
