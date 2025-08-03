@@ -13,13 +13,16 @@ local Window = Library:CreateWindow({
     ShowCustomCursor = true,
 })
 
--- ✅ Tabs dan GroupBoxes
-local Tabs = { Main = Window:AddTab("Main", "user") }
+-- ✅ Tabs & GroupBoxes
+local Tabs = {
+    Main = Window:AddTab("Main", "user"),
+}
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
 local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda")
 
+-- ✅ Labels
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
 
@@ -39,7 +42,7 @@ local blinkDelay = 0.15
 local rotateDelay = 0.2
 local followTarget = nil
 
--- ✅ Utility
+-- ✅ Utility Functions
 local function getPlayerNames()
     local list = {}
     for _, player in ipairs(Players:GetPlayers()) do
@@ -51,9 +54,10 @@ local function getPlayerNames()
 end
 
 local function deleteTenda()
+    local args = { "uxrDeleteEvent", "Tenda" }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
         :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
-        :FireServer("uxrDeleteEvent", "Tenda")
+        :FireServer(unpack(args))
 end
 
 local function spawnTendaAt(pos)
@@ -69,13 +73,14 @@ local function spawnTendaAt(pos)
         :FireServer(unpack(args))
 end
 
-local function hasMoved(a, b)
-    return (a - b).Magnitude > 1
+local function hasMoved(lastPos, newPos)
+    return (lastPos - newPos).Magnitude > 1
 end
 
-local function followTargetPlayer(player)
-    if not player then return end
-    followTarget = player
+-- ✅ Follow Tenda
+local function followTargetPlayer(targetPlayer)
+    if not targetPlayer then return end
+    followTarget = targetPlayer
 
     local function follow(char)
         local hrp = char:WaitForChild("HumanoidRootPart")
@@ -83,17 +88,17 @@ local function followTargetPlayer(player)
         spawnTendaAt(lastPos)
 
         local humanoid = char:FindFirstChildOfClass("Humanoid")
-        local diedConn
+        local diedConnection
         if humanoid then
-            diedConn = humanoid.Died:Connect(function()
+            diedConnection = humanoid.Died:Connect(function()
                 deleteTenda()
-                Library:Notify("Target mati. Pause follow.", 3)
+                Library:Notify("Target died. Tent follow paused.", 3)
             end)
         end
 
-        while running and followTarget == player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do
+        while running and followTarget == targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
             task.wait(followDelay)
-            local newPos = player.Character.HumanoidRootPart.Position
+            local newPos = targetPlayer.Character.HumanoidRootPart.Position
             if hasMoved(lastPos, newPos) then
                 deleteTenda()
                 spawnTendaAt(newPos)
@@ -101,47 +106,53 @@ local function followTargetPlayer(player)
             end
         end
 
-        if diedConn then diedConn:Disconnect() end
+        if diedConnection then
+            diedConnection:Disconnect()
+        end
     end
 
-    if player.Character then task.spawn(function() follow(player.Character) end) end
+    if targetPlayer.Character then
+        task.spawn(function() follow(targetPlayer.Character) end)
+    end
 
-    player.CharacterAdded:Connect(function(char)
-        if running and followTarget == player then
-            Library:Notify("Target respawn. Lanjut follow.", 3)
+    targetPlayer.CharacterAdded:Connect(function(newChar)
+        if running and followTarget == targetPlayer then
+            Library:Notify("Target respawned. Resuming follow.", 3)
             task.wait(1)
-            task.spawn(function() follow(char) end)
+            task.spawn(function() follow(newChar) end)
         end
     end)
 end
 
--- ✅ FOLLOW UI
+-- ✅ UI: Follow Tenda
 GroupBox:AddInput("TargetName", {
-    Default = "", Text = "Nama Target Manual", Placeholder = "Contoh: Player123",
-    Tooltip = "Masukkan DisplayName/Username target",
-    Callback = function(v) targetName = v end
+    Default = "",
+    Text = "Nama Target Manual",
+    Placeholder = "Contoh: Player123",
+    Callback = function(value) targetName = value end
 })
 
-local dropdown = GroupBox:AddDropdown("TargetDropdown", {
-    Values = getPlayerNames(), Multi = false,
-    Text = "Pilih Target dari List", Tooltip = "Langsung pilih dari pemain",
-    Callback = function(v)
-        local name = string.match(v, "%[(.-)%]$")
+local playerDropdown = GroupBox:AddDropdown("TargetDropdown", {
+    Values = getPlayerNames(),
+    Multi = false,
+    Text = "Pilih Target dari List",
+    Callback = function(value)
+        local name = string.match(value, "%[(.-)%]$")
         if name then targetName = name end
     end
 })
 
 GroupBox:AddButton("Refresh Player List", function()
-    dropdown:SetValues(getPlayerNames())
-    Library:Notify("Player list diperbarui", 3)
+    playerDropdown:SetValues(getPlayerNames())
+    Library:Notify("Player list updated.", 3)
 end)
 
 GroupBox:AddInput("FollowDelay", {
-    Default = "0.5", Text = "Delay (detik)",
-    Placeholder = "Contoh: 0.2",
-    Callback = function(v)
-        local n = tonumber(v)
-        if n then followDelay = n end
+    Default = "0.5",
+    Text = "Delay (detik)",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then followDelay = num end
     end
 })
 
@@ -149,23 +160,23 @@ GroupBox:AddButton("Cancel Follow", function()
     running = false
     followTarget = nil
     deleteTenda()
-    Library:Notify("Follow dihentikan", 3)
+    Library:Notify("Follow stopped and tent removed.", 3)
 end)
 
 GroupBox:AddToggle("FollowTenda", {
-    Text = "Aktifkan Follow Tenda", Default = false,
+    Text = "Aktifkan Follow Tenda",
+    Default = false,
     Callback = function(state)
         running = state
         if state then
             if targetName == "" then
-                Library:Notify("Isi atau pilih nama target dulu.", 3)
+                Library:Notify("Masukkan atau pilih nama target dulu.", 3)
                 return
             end
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Name:lower() == targetName:lower() or p.DisplayName:lower() == targetName:lower() then
-                    followTarget = p
-                    Library:Notify("Following: " .. p.Name, 3)
-                    task.spawn(function() followTargetPlayer(p) end)
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Name:lower() == targetName:lower() or player.DisplayName:lower() == targetName:lower() then
+                    followTargetPlayer(player)
+                    Library:Notify("Mengikuti: " .. player.Name, 3)
                     return
                 end
             end
@@ -174,48 +185,175 @@ GroupBox:AddToggle("FollowTenda", {
             running = false
             followTarget = nil
             deleteTenda()
-            Library:Notify("Follow dimatikan", 3)
         end
     end
 })
 
--- ✅ Auto Rejoin Support
+-- ✅ Target keluar/masuk
 Players.PlayerRemoving:Connect(function(p)
     if followTarget and p == followTarget then
+        running = false
+        blinkRunning = false
+        rotateRunning = false
+        followTarget = nil
         deleteTenda()
         Library:Notify("Target keluar. Menunggu rejoin...", 3)
     end
 end)
 
-Players.PlayerAdded:Connect(function(p)
+Players.PlayerAdded:Connect(function(joinedPlayer)
     if targetName == "" then return end
-    if p.Name:lower() == targetName:lower() or p.DisplayName:lower() == targetName:lower() then
-        followTarget = p
-        Library:Notify("Target rejoin. Melanjutkan follow...", 3)
+    if joinedPlayer.Name:lower() == targetName:lower() or joinedPlayer.DisplayName:lower() == targetName:lower() then
+        followTarget = joinedPlayer
+        Library:Notify("Target rejoined. Resuming features...", 3)
         task.wait(1)
-        running = true
-        task.spawn(function() followTargetPlayer(p) end)
+
+        if running then task.spawn(function() followTargetPlayer(joinedPlayer) end) end
+
+        if blinkRunning then
+            task.spawn(function()
+                while blinkRunning do
+                    deleteTenda()
+                    local pos = joinedPlayer.Character and joinedPlayer.Character:FindFirstChild("HumanoidRootPart") and joinedPlayer.Character.HumanoidRootPart.Position or Vector3.new()
+                    spawnTendaAt(pos)
+                    task.wait(blinkDelay)
+                end
+            end)
+        end
+
+        if rotateRunning then
+            task.spawn(function()
+                local angle = 0
+                while rotateRunning do
+                    deleteTenda()
+                    local pos = joinedPlayer.Character and joinedPlayer.Character:FindFirstChild("HumanoidRootPart") and joinedPlayer.Character.HumanoidRootPart.Position or Vector3.new()
+                    local rad = math.rad(angle)
+                    local cos = math.cos(rad)
+                    local sin = math.sin(rad)
+                    local args = {
+                        "uxrPlaceEvent", "Tenda",
+                        pos.X, pos.Y, pos.Z,
+                        cos, 0, sin,
+                        0, 1, 0,
+                        -sin, 0, cos
+                    }
+                    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+                        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+                    angle = (angle + 30) % 360
+                    task.wait(rotateDelay)
+                end
+            end)
+        end
     end
 end)
 
--- ✅ Leave Room
-local function leaveRoom()
-    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
-        :WaitForChild("Remote"):WaitForChild("RemoteFunction")
-        :InvokeServer("Phone", "LeaveRoom")
-end
+-- ✅ Efek Blink
+EffectBox:AddToggle("BlinkTenda", {
+    Text = "Blink/Flash Tenda",
+    Default = false,
+    Callback = function(state)
+        blinkRunning = state
+        if state then
+            Library:Notify("Tenda blink dimulai", 3)
+            task.spawn(function()
+                while blinkRunning do
+                    deleteTenda()
+                    local pos = followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") and followTarget.Character.HumanoidRootPart.Position
+                        or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new())
+                    spawnTendaAt(pos)
+                    task.wait(blinkDelay)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Tenda blink dihentikan", 3)
+        end
+    end
+})
+
+EffectBox:AddInput("BlinkDelayInput", {
+    Default = tostring(blinkDelay),
+    Text = "Kecepatan Blink (detik)",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then
+            blinkDelay = num
+            Library:Notify("Blink delay diatur ke " .. blinkDelay, 3)
+        end
+    end
+})
+
+-- ✅ Efek Rotasi
+EffectBox:AddToggle("RotateTenda", {
+    Text = "Putar-Putar Tenda",
+    Default = false,
+    Callback = function(state)
+        rotateRunning = state
+        if state then
+            Library:Notify("Rotasi tenda dimulai", 3)
+            task.spawn(function()
+                local angle = 0
+                while rotateRunning do
+                    deleteTenda()
+                    local pos = followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") and followTarget.Character.HumanoidRootPart.Position
+                        or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new())
+
+                    local rad = math.rad(angle)
+                    local cos = math.cos(rad)
+                    local sin = math.sin(rad)
+
+                    local args = {
+                        "uxrPlaceEvent", "Tenda",
+                        pos.X, pos.Y, pos.Z,
+                        cos, 0, sin,
+                        0, 1, 0,
+                        -sin, 0, cos
+                    }
+
+                    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+                        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+                        :FireServer(unpack(args))
+
+                    angle = (angle + 30) % 360
+                    task.wait(rotateDelay)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Rotasi tenda dihentikan", 3)
+        end
+    end
+})
+
+EffectBox:AddInput("RotateDelayInput", {
+    Default = tostring(rotateDelay),
+    Text = "Kecepatan Putar (detik)",
+    Callback = function(value)
+        local num = tonumber(value)
+        if num then
+            rotateDelay = num
+            Library:Notify("Rotasi delay diatur ke " .. rotateDelay, 3)
+        end
+    end
+})
 
 -- ✅ Spam Call
+local function leaveRoom()
+    local args = { "Phone", "LeaveRoom" }
+    ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
+        :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+end
+
 local function spamInviteLoop()
     spamCallRunning = true
     while spamCallRunning do
-        for _, p in ipairs(Players:GetPlayers()) do
+        for _, player in ipairs(Players:GetPlayers()) do
             if not spamCallRunning then break end
-            if p ~= LocalPlayer then
-                CallingLabel:SetText("Calling: " .. p.DisplayName .. " [" .. p.Name .. "]")
+            if player ~= LocalPlayer then
+                CallingLabel:SetText("Calling: " .. player.DisplayName .. " [" .. player.Name .. "]")
+                local args = { "Phone", "InviteToRoom", player }
                 ReplicatedStorage:WaitForChild("EdenShared"):WaitForChild("Modules")
-                    :WaitForChild("Remote"):WaitForChild("RemoteFunction")
-                    :InvokeServer("Phone", "InviteToRoom", p)
+                    :WaitForChild("Remote"):WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
                 task.wait(0.6)
                 leaveRoom()
                 task.wait(0.4)
@@ -228,25 +366,26 @@ end
 CallBox:AddButton("Start Spam Call", function()
     if not spamCallRunning then
         task.spawn(spamInviteLoop)
-        Library:Notify("Mulai spam telepon...", 3)
+        Library:Notify("Starting call spam loop...", 3)
     end
 end)
 
 CallBox:AddButton("Stop Call", function()
     spamCallRunning = false
     CallingLabel:SetText("Call stopped.")
-    Library:Notify("Spam telepon dihentikan.", 3)
+    Library:Notify("Call spam stopped.", 3)
 end)
 
 -- ✅ Spam Carry
 local function spamCarryLoop()
     carryRunning = true
     while carryRunning do
-        for _, p in ipairs(Players:GetPlayers()) do
+        for _, player in ipairs(Players:GetPlayers()) do
             if not carryRunning then break end
-            if p ~= LocalPlayer then
-                ReplicatedStorage:WaitForChild("CarryRequest"):FireServer("Request", p)
-                CarryingLabel:SetText("Request ke: " .. p.DisplayName .. " [" .. p.Name .. "]")
+            if player ~= LocalPlayer then
+                local args = { "Request", player }
+                ReplicatedStorage:WaitForChild("CarryRequest"):FireServer(unpack(args))
+                CarryingLabel:SetText("Sending carry request to: " .. player.DisplayName .. " [" .. player.Name .. "]")
                 task.wait(0.4)
             end
         end
@@ -257,93 +396,12 @@ end
 CarryBox:AddButton("Start Spam Carry", function()
     if not carryRunning then
         task.spawn(spamCarryLoop)
-        Library:Notify("Mulai spam carry...", 3)
+        Library:Notify("Starting carry request spam...", 3)
     end
 end)
 
 CarryBox:AddButton("Stop Spam Carry", function()
     carryRunning = false
     CarryingLabel:SetText("Carry request stopped.")
-    Library:Notify("Spam carry dihentikan.", 3)
+    Library:Notify("Carry spam stopped.", 3)
 end)
-
--- ✅ Efek Blink & Rotasi
-EffectBox:AddToggle("BlinkTenda", {
-    Text = "Blink/Flash Tenda", Default = false,
-    Callback = function(state)
-        blinkRunning = state
-        if state then
-            Library:Notify("Blink dimulai", 3)
-            task.spawn(function()
-                while blinkRunning do
-                    deleteTenda()
-                    local pos = (followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart"))
-                        and followTarget.Character.HumanoidRootPart.Position
-                        or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position)
-                        or Vector3.new()
-                    spawnTendaAt(pos)
-                    task.wait(blinkDelay)
-                end
-            end)
-        else
-            deleteTenda()
-            Library:Notify("Blink dihentikan", 3)
-        end
-    end
-})
-
-EffectBox:AddInput("BlinkDelayInput", {
-    Default = tostring(blinkDelay),
-    Text = "Kecepatan Blink (detik)",
-    Placeholder = "Contoh: 0.1",
-    Callback = function(v)
-        local n = tonumber(v)
-        if n then
-            blinkDelay = n
-            Library:Notify("Blink delay: " .. blinkDelay, 3)
-        end
-    end
-})
-
-EffectBox:AddToggle("RotateTenda", {
-    Text = "Putar-Putar Tenda", Default = false,
-    Callback = function(state)
-        rotateRunning = state
-        if state then
-            Library:Notify("Rotasi dimulai", 3)
-            task.spawn(function()
-                local angle = 0
-                while rotateRunning do
-                    deleteTenda()
-                    local pos = (followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart"))
-                        and followTarget.Character.HumanoidRootPart.Position
-                        or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position)
-                        or Vector3.new()
-                    local rad = math.rad(angle)
-                    local cos, sin = math.cos(rad), math.sin(rad)
-                    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
-                        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
-                        :FireServer("uxrPlaceEvent", "Tenda", pos.X, pos.Y, pos.Z, cos, 0, sin, 0, 1, 0, -sin, 0, cos)
-                    angle = (angle + 30) % 360
-                    task.wait(rotateDelay)
-                end
-            end)
-        else
-            deleteTenda()
-            Library:Notify("Rotasi dihentikan", 3)
-        end
-    end
-})
-
-EffectBox:AddInput("RotateDelayInput", {
-    Default = tostring(rotateDelay),
-    Text = "Kecepatan Putar (detik)",
-    Placeholder = "Contoh: 0.2",
-    Callback = function(v)
-        local n = tonumber(v)
-        if n then
-            rotateDelay = n
-            Library:Notify("Rotasi delay: " .. rotateDelay, 3)
-        end
-    end
-})
