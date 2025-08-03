@@ -22,7 +22,7 @@ local Tabs = {
 local GroupBox = Tabs.Main:AddLeftGroupbox("Tenda Follow")
 local CallBox = Tabs.Main:AddRightGroupbox("Spam Telepon")
 local CarryBox = Tabs.Main:AddLeftGroupbox("Carry Request")
-local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda") -- Tambahan
+local EffectBox = Tabs.Main:AddRightGroupbox("Efek Tenda") -- ✅ Tambahan fitur efek
 
 local CallingLabel = CallBox:AddLabel("Sedang menelepon: -")
 local CarryingLabel = CarryBox:AddLabel("Sedang carry request: -")
@@ -60,16 +60,13 @@ local function deleteTenda()
         :FireServer(unpack(args))
 end
 
-local function spawnTendaAt(pos, rot)
-    rot = rot or {
-        0.538154125213623, 0, 0.8428464531898499,
-        0, 1, 0,
-        -0.8428464531898499, 0, 0.538154125213623
-    }
+local function spawnTendaAt(pos)
     local args = {
         "uxrPlaceEvent", "Tenda",
         pos.X, pos.Y, pos.Z,
-        unpack(rot)
+        0.538154125213623, 0, 0.8428464531898499,
+        0, 1, 0,
+        -0.8428464531898499, 0, 0.538154125213623
     }
     ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
         :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
@@ -99,19 +96,12 @@ local function followTargetPlayer(targetPlayer)
         end
 
         while running and followTarget == targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+            task.wait(followDelay)
             local newPos = targetPlayer.Character.HumanoidRootPart.Position
-
-            if blinkRunning then
+            if hasMoved(lastPos, newPos) then
                 deleteTenda()
                 spawnTendaAt(newPos)
-                task.wait(0.15)
-            else
-                if hasMoved(lastPos, newPos) then
-                    deleteTenda()
-                    spawnTendaAt(newPos)
-                    lastPos = newPos
-                end
-                task.wait(followDelay)
+                lastPos = newPos
             end
         end
 
@@ -222,74 +212,7 @@ GroupBox:AddToggle("FollowTenda", {
     end,
 })
 
--- ✅ Blink Toggle (terintegrasi)
-EffectBox:AddToggle("BlinkTenda", {
-    Text = "Blink/Flash Tenda",
-    Default = false,
-    Tooltip = "Jika Follow aktif, tenda akan berkedip mengikuti target",
-    Callback = function(state)
-        blinkRunning = state
-        if state then
-            if running then
-                Library:Notify("Blink diaktifkan untuk tenda yang mengikuti target.", 3)
-            else
-                Library:Notify("Blink manual dimulai (posisi kamu).", 3)
-                task.spawn(function()
-                    while blinkRunning and not running do
-                        deleteTenda()
-                        local pos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if pos then
-                            spawnTendaAt(pos.Position)
-                        end
-                        task.wait(0.15)
-                    end
-                end)
-            end
-        else
-            deleteTenda()
-            Library:Notify("Blink dihentikan.", 3)
-        end
-    end,
-})
-
--- ✅ Rotate Tenda
-EffectBox:AddToggle("RotateTenda", {
-    Text = "Putar-Putar Tenda",
-    Default = false,
-    Tooltip = "Tenda akan dipasang dengan rotasi berputar",
-    Callback = function(state)
-        rotateRunning = state
-        if state then
-            Library:Notify("Rotasi tenda dimulai", 3)
-            task.spawn(function()
-                local angle = 0
-                while rotateRunning do
-                    deleteTenda()
-                    local pos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if pos then
-                        local rad = math.rad(angle)
-                        local cos = math.cos(rad)
-                        local sin = math.sin(rad)
-
-                        spawnTendaAt(pos.Position, {
-                            cos, 0, sin,
-                            0, 1, 0,
-                            -sin, 0, cos
-                        })
-
-                        angle = (angle + 30) % 360
-                    end
-                    task.wait(0.2)
-                end
-            end)
-        else
-            deleteTenda()
-            Library:Notify("Rotasi tenda dihentikan", 3)
-        end
-    end,
-})
-
--- ✅ Handle Target Keluar/Masuk
+-- ✅ Perbaikan: Handle Target Keluar / Masuk
 Players.PlayerRemoving:Connect(function(leavingPlayer)
     if followTarget and leavingPlayer == followTarget then
         followTarget = nil
@@ -379,3 +302,77 @@ CarryBox:AddButton("Stop Spam Carry", function()
     CarryingLabel:SetText("Carry request stopped.")
     Library:Notify("Carry spam stopped.", 3)
 end)
+
+-- ✅ Efek Tenda: Blink dan Rotasi (mengikuti followTarget)
+EffectBox:AddToggle("BlinkTenda", {
+    Text = "Blink/Flash Tenda",
+    Default = false,
+    Tooltip = "Tenda akan dihapus dan dipasang terus menerus",
+    Callback = function(state)
+        blinkRunning = state
+        if state then
+            Library:Notify("Tenda blink dimulai", 3)
+            task.spawn(function()
+                while blinkRunning do
+                    deleteTenda()
+                    local pos = Vector3.new()
+                    if followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
+                        pos = followTarget.Character.HumanoidRootPart.Position
+                    elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        pos = LocalPlayer.Character.HumanoidRootPart.Position
+                    end
+                    spawnTendaAt(pos)
+                    task.wait(0.15)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Tenda blink dihentikan", 3)
+        end
+    end,
+})
+
+EffectBox:AddToggle("RotateTenda", {
+    Text = "Putar-Putar Tenda",
+    Default = false,
+    Tooltip = "Tenda akan dipasang dengan rotasi berputar",
+    Callback = function(state)
+        rotateRunning = state
+        if state then
+            Library:Notify("Rotasi tenda dimulai", 3)
+            task.spawn(function()
+                local angle = 0
+                while rotateRunning do
+                    deleteTenda()
+                    local pos = Vector3.new()
+                    if followTarget and followTarget.Character and followTarget.Character:FindFirstChild("HumanoidRootPart") then
+                        pos = followTarget.Character.HumanoidRootPart.Position
+                    elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        pos = LocalPlayer.Character.HumanoidRootPart.Position
+                    end
+                    local rad = math.rad(angle)
+                    local cos = math.cos(rad)
+                    local sin = math.sin(rad)
+
+                    local args = {
+                        "uxrPlaceEvent", "Tenda",
+                        pos.X, pos.Y, pos.Z,
+                        cos, 0, sin,
+                        0, 1, 0,
+                        -sin, 0, cos
+                    }
+
+                    ReplicatedStorage:WaitForChild("uxrPlacementSystem#RS@4.0")
+                        :WaitForChild("placementEvents"):WaitForChild("RemoteEvent")
+                        :FireServer(unpack(args))
+
+                    angle = (angle + 30) % 360
+                    task.wait(0.2)
+                end
+            end)
+        else
+            deleteTenda()
+            Library:Notify("Rotasi tenda dihentikan", 3)
+        end
+    end,
+})
